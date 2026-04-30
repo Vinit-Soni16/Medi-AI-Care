@@ -34,6 +34,31 @@ router.get('/', protect, async (req, res, next) => {
   }
 });
 
+// GET /api/appointments/doctor/:doctorId/slots – Get available slots (MUST be before :id routes)
+router.get('/doctor/:doctorId/slots', protect, async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ message: 'Date is required.' });
+    }
+    const allSlots = ['09:00 AM','09:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM',
+      '12:00 PM','12:30 PM','02:00 PM','02:30 PM','03:00 PM','03:30 PM','04:00 PM','04:30 PM','05:00 PM'];
+
+    const booked = await Appointment.find({
+      doctorId: req.params.doctorId,
+      date: new Date(date),
+      status: { $in: ['pending', 'confirmed'] },
+    }).select('timeSlot');
+
+    const bookedSlots = booked.map((a) => a.timeSlot);
+    const availableSlots = allSlots.filter((s) => !bookedSlots.includes(s));
+
+    res.json({ availableSlots, bookedSlots });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/appointments – Book appointment
 router.post('/', protect, requireRole('patient', 'admin'), async (req, res, next) => {
   try {
@@ -131,28 +156,6 @@ router.delete('/:id', protect, async (req, res, next) => {
 
     await appt.deleteOne();
     res.json({ message: 'Appointment cancelled.' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/appointments/doctor/:doctorId/slots – Get available slots
-router.get('/doctor/:doctorId/slots', protect, async (req, res, next) => {
-  try {
-    const { date } = req.query;
-    const allSlots = ['09:00 AM','09:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM',
-      '12:00 PM','12:30 PM','02:00 PM','02:30 PM','03:00 PM','03:30 PM','04:00 PM','04:30 PM','05:00 PM'];
-
-    const booked = await Appointment.find({
-      doctorId: req.params.doctorId,
-      date: new Date(date),
-      status: { $in: ['pending', 'confirmed'] },
-    }).select('timeSlot');
-
-    const bookedSlots = booked.map((a) => a.timeSlot);
-    const availableSlots = allSlots.filter((s) => !bookedSlots.includes(s));
-
-    res.json({ availableSlots, bookedSlots });
   } catch (err) {
     next(err);
   }
